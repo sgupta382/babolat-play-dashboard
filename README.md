@@ -59,6 +59,7 @@ python3 -m babolat_play status                       # what's imported, what's i
 | Command | What it does |
 |---|---|
 | `import [--path P] [--min-swings 10]` | Import new sessions, update milestones and rebuild the dashboard |
+| `clock "YYYY-MM-DD HH:MM" [--path P]` | After the racket clock resets to 2012: give the real time your last session ended, and it dates and imports the held-back sessions |
 | `build` | Rebuild the dashboard from stored data |
 | `serve [--port 8765]` | Serve the dashboard on your network (read-only) |
 | `install [--no-serve]` / `uninstall` | macOS: add or remove the auto-import and server agents |
@@ -108,6 +109,7 @@ Every raw log is archived in `~/.babolat-play/raw/`, and each swing's raw bytes 
 - **"Can't read the racket" notification, or nothing imports automatically.** macOS asks before background apps can read USB drives. Open *System Settings → Privacy & Security → Files & Folders* and allow **Removable Volumes** for `python3`. You can also add the interpreter shown by `python3 -c "import sys; print(sys.executable)"` to *Full Disk Access*. Then plug the racket in again. Logs are in `~/.babolat-play/agent.log`.
 - **The phone can't open `your-mac.local`.** Use the IP address that `status` prints instead, for example `http://192.168.1.20:8765`. Make sure both devices are on the same Wi-Fi and that the macOS firewall allows incoming connections for Python.
 - **Port 8765 is in use.** Run `python3 -m babolat_play install --port 8877`.
+- **"The racket clock was reset" / sessions not imported.** A flat battery resets the racket's clock to 2012, so new sessions can't be dated. Run `python3 -m babolat_play clock "2026-10-13 17:50"` with the date and time your most recent session ended. It works out the offset, then imports. You only need to do it once per reset.
 - **The racket doesn't mount.** Charge it, then use a data-capable USB cable. It appears as a small drive named `BABOLAT`.
 - **The share button downloads instead of opening the share sheet.** Browsers only allow native sharing over HTTPS. Over plain `http://` on your Wi-Fi, the card opens as an image: press and hold it to save or share.
 

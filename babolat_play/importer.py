@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from .parser import FormatError, parse_log
+from .clock import Clock
+from .parser import FormatError, Session, parse_log
 from .store import Store
 
 VOLUME_NAME = "BABOLAT"
@@ -17,6 +18,7 @@ class ImportResult:
     new: List[str] = field(default_factory=list)
     updated: List[str] = field(default_factory=list)
     skipped: int = 0
+    undated: int = 0            # reset racket clock and no calibration covers them
     errors: List[str] = field(default_factory=list)
 
 
@@ -52,30 +54,43 @@ def log_files(src: Path) -> List[Path]:
     return [Path(src) / n for n in sorted(names, key=str.upper)]
 
 
-def import_path(src: Path, store: Store, archive: Optional[Path] = None,
-                min_swings: int = 10, import_id: Optional[int] = None) -> ImportResult:
-    own_run = import_id is None
-    result = ImportResult(import_id if not own_run else store.begin_import())
+def read_sessions(src: Path, archive: Optional[Path] = None,
+                  errors: Optional[List[str]] = None) -> List[Session]:
+    """Every session in the logs under src. Unreadable files go to `errors`."""
+    out = []
     for f in log_files(src):
         data = f.read_bytes()
         if archive is not None:
             _archive(data, archive)
         try:
-            sessions = parse_log(data, f.name)
+            out += parse_log(data, f.name)
         except FormatError as e:
-            result.errors.append(f"{f.name}: {e}")
+            if errors is not None:
+                errors.append(f"{f.name}: {e}")
+    return out
+
+
+def import_path(src: Path, store: Store, archive: Optional[Path] = None,
+                min_swings: int = 10, import_id: Optional[int] = None,
+                clock: Optional[Clock] = None) -> ImportResult:
+    own_run = import_id is None
+    result = ImportResult(import_id if not own_run else store.begin_import())
+    for s in read_sessions(src, archive, result.errors):
+        if len(s.swings) < min_swings:
+            result.skipped += 1
             continue
-        for s in sessions:
-            if len(s.swings) < min_swings:
-                result.skipped += 1
+        if s.clock_reset:
+            s = clock.correct(s) if clock else None
+            if s is None:
+                result.undated += 1
                 continue
-            outcome = store.upsert_session(s)
-            if outcome == "new":
-                result.new.append(s.id)
-            elif outcome == "updated":
-                result.updated.append(s.id)
-            else:
-                result.skipped += 1
+        outcome = store.upsert_session(s)
+        if outcome == "new":
+            result.new.append(s.id)
+        elif outcome == "updated":
+            result.updated.append(s.id)
+        else:
+            result.skipped += 1
     if own_run:
         store.finish_import(result.import_id, len(result.new), len(result.updated))
     return result

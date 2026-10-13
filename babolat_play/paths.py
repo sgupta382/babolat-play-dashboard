@@ -17,3 +17,7 @@ def site_dir() -> Path:
 
 def raw_dir() -> Path:
     return home() / "raw"
+
+
+def clock_path() -> Path:
+    return home() / "clock.json"

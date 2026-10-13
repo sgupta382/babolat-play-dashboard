@@ -50,6 +50,10 @@ Several 32-bit little-endian words (`0x20000d48`, `0x20007f70`, `0x20007f76`) lo
 
 **Evidence:** every log decodes to a date that matches its file modification date, and the times are plausible. Bytes 7–8 and 9–10 hold in all 9 logs seen so far: the length is always a few seconds past the last swing, and the count matches the records exactly.
 
+### Clock resets ✅
+
+When the battery runs flat, the racket clock restarts at **2012-09-01 00:00** and keeps counting from there, so every later session is dated 2012-09-01 or soon after. Times within a session stay correct. The importer holds these sessions back until you run `python3 -m babolat_play clock "YYYY-MM-DD HH:MM"` with the real time your last session ended. That gives one offset, which is saved in `~/.babolat-play/clock.json` and applied to every session since the reset. A new, unknown session dated before the calibrated ones means the clock has reset again, so it's held back until you recalibrate. A second reset that's only found when the clock has passed the calibrated sessions can't be detected.
+
 ### Record type 10: marker ✅
 
 `0a 01 03 00 61 00 00 00 00 00 00 tt tt` turns up right after a session start, mid-session after a pause, and on its own in empty sessions. It's a device event (perhaps wake-up, or battery at 97%), not a swing, and the parser skips it.

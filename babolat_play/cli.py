@@ -1,11 +1,12 @@
 """Command line: python3 -m babolat_play <command>"""
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from . import agent, demo, paths, server, site
-from .importer import ImportResult, find_racket_volumes, import_path
+from . import agent, clock, demo, paths, server, site
+from .importer import ImportResult, find_racket_volumes, import_path, read_sessions
 from .milestones import compute_milestones
 from .notify import notify
 from .store import Store
@@ -34,10 +35,11 @@ def cmd_import(args) -> int:
     store = Store(paths.db_path())
     import_id = store.begin_import()
     total = ImportResult(import_id)
+    clk = clock.load(paths.clock_path())
     for vol in volumes:
         try:
             r = import_path(vol, store, archive=paths.raw_dir(), min_swings=args.min_swings,
-                            import_id=import_id)
+                            import_id=import_id, clock=clk)
         except PermissionError:
             store.discard_import(import_id)
             notify("Babolat Play", "Can't read the racket. Allow Python access to removable volumes (see README).")
@@ -50,6 +52,7 @@ def cmd_import(args) -> int:
         total.new += r.new
         total.updated += r.updated
         total.skipped += r.skipped
+        total.undated += r.undated
         total.errors += r.errors
     if total.new or total.updated:
         store.finish_import(import_id, len(total.new), len(total.updated))
@@ -65,13 +68,42 @@ def cmd_import(args) -> int:
         print(f"  skipped file: {e}", file=sys.stderr)
     for m in added:
         print(f"  milestone: {_milestone_text(m)}")
+    if total.undated:
+        print(f"{total.undated} session{'s' if total.undated != 1 else ''} not imported: the racket clock "
+              "was reset to 2012. Fix the dates with:\n"
+              '  python3 -m babolat_play clock "YYYY-MM-DD HH:MM"   # when your last session ended')
     if args.auto and (total.new or total.updated):
         n = len(total.new) + len(total.updated)
         msg = f"{n} new session{'s' if n != 1 else ''} imported"
         if added:
             msg += " · 🏆 " + ", ".join(_milestone_text(m) for m in added[:3])
         notify("Babolat Play", msg)
+    if args.auto and total.undated:
+        notify("Babolat Play", "The racket clock was reset. Run the clock command to date your new sessions (see README).")
     return 0
+
+
+def cmd_clock(args) -> int:
+    volumes = [Path(args.path)] if args.path else find_racket_volumes()
+    if not volumes:
+        print("No racket found. Plug it in (it mounts as BABOLAT) or pass --path.")
+        return 1
+    try:
+        sessions = [s for vol in volumes for s in read_sessions(vol)]
+        clk = clock.calibrate(sessions, args.ended)
+    except PermissionError:
+        print("Permission denied reading the racket. See README > Troubleshooting.", file=sys.stderr)
+        return 1
+    except ValueError:
+        print("The racket clock looks right: no sessions are dated 2012. Nothing to fix.")
+        return 0
+    clock.save(paths.clock_path(), clk)
+    print("Racket clock corrected. Sessions recorded since the reset:")
+    for s in sorted((s for s in sessions if s.clock_reset and len(s.swings) >= args.min_swings),
+                    key=lambda s: s.started_at):
+        fixed = clk.correct(s).started_at
+        print(f"  {s.source:11s} {s.started_at:%Y-%m-%d %H:%M} -> {fixed:%Y-%m-%d %H:%M}  ({len(s.swings)} shots)")
+    return cmd_import(argparse.Namespace(path=args.path, auto=False, min_swings=args.min_swings))
 
 
 def cmd_build(args) -> int:
@@ -150,6 +182,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--auto", action="store_true", help="quiet mode for the launchd agent; notifies on news")
     p.add_argument("--min-swings", type=int, default=10, help="ignore sessions shorter than this")
     p.set_defaults(fn=cmd_import)
+    p = sub.add_parser("clock", help="fix 2012 dates after the racket clock reset, then import")
+    p.add_argument("ended", type=datetime.fromisoformat,
+                   help='when your last session ended, e.g. "2026-10-13 17:50"')
+    p.add_argument("--path", help="folder holding LOG*.BIN (default: auto-detect the racket)")
+    p.add_argument("--min-swings", type=int, default=10, help="ignore sessions shorter than this")
+    p.set_defaults(fn=cmd_clock)
     sub.add_parser("build", help="rebuild the dashboard from stored data").set_defaults(fn=cmd_build)
     p = sub.add_parser("serve", help="serve the dashboard on your local network")
     p.add_argument("--port", type=int, default=8765)
