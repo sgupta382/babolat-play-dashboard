@@ -1,6 +1,6 @@
 # Babolat Play Dashboard: design spec
 
-Date: 2026-10-13 · Status: awaiting approval
+Date: 2026-10-13 · Status: approved 2026-10-13
 
 ## Goal
 Babolat no longer supports its Play racket app. This project gives Babolat Play owners a private, phone-friendly dashboard for their racket data. It imports every session automatically when the racket is plugged in, tracks trends in shot mix, speed and spin across sessions, and highlights new milestones in a way that can be shared.
