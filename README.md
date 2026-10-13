@@ -87,8 +87,9 @@ More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 The racket's file format was never published, so it was reverse-engineered for this project:
 
-- **Verified:** the file layout, session start times, the number of swings and the time of each swing.
-- **Inferred from the data:** stroke type, spin and speed. They behave the way you'd expect (serves fastest, forehands mostly topspin, backhands mostly slice), but no recorded session has been checked against known shots yet.
+- **Verified:** the file layout, session start times and lengths, the number of swings and the time of each swing, and forehand versus backhand (checked against labelled drills).
+- **Calibrated on labelled sessions:** volleys. The racket files most volleys under forehand or backhand, so slow, flat or slice ones are counted as volleys.
+- **Inferred from the data:** serves, spin and speed. They behave the way you'd expect (serves fastest, forehands mostly topspin, backhands mostly slice), but haven't been checked against known shots.
 - **Not decoded:** overheads, impact location and other fields.
 
 [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) gives the evidence for every byte. **You can help improve it.** Record a labelled session and share it; [CONTRIBUTING.md](CONTRIBUTING.md) explains how.

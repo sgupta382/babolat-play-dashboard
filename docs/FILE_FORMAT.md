@@ -43,18 +43,25 @@ Several 32-bit little-endian words (`0x20000d48`, `0x20007f70`, `0x20007f76`) lo
 | 0 | `0x00` marks a session start | `00` |
 | 1, 2, 3 | Hour, minute, second (racket clock, local time) | `13 11 21` = 19:17:33 |
 | 4, 5, 6 | Day, month, year − 2000 | `1d 08 16` = 29 Aug 2022 |
-| 7–12 | ❓ | `48 10 97 00 40 00` |
+| 7–8 | Session length in seconds, uint16 LE | `48 10` = 4168 s |
+| 9–10 | Number of records that follow (swings and markers), uint16 LE | `97 00` = 151 |
+| 11 | ❓ | `40` |
+| 12 | ❓ (zero so far) | `00` |
 
-**Evidence:** both logs decode to dates that match their file modification dates (2022-08-29 and 2012-09-01), and the times are plausible.
+**Evidence:** every log decodes to a date that matches its file modification date, and the times are plausible. Bytes 7–8 and 9–10 hold in all 9 logs seen so far: the length is always a few seconds past the last swing, and the count matches the records exactly.
+
+### Record type 10: marker ✅
+
+`0a 01 03 00 61 00 00 00 00 00 00 tt tt` turns up right after a session start, mid-session after a pause, and on its own in empty sessions. It's a device event (perhaps wake-up, or battery at 97%), not a swing, and the parser skips it.
 
 ### Swing record
 
 | Byte(s) | Meaning | Status | Notes |
 |---|---|---|---|
-| 0 | Stroke code | 🟡 | `3` forehand, `4` backhand, `2` serve, `8`/`9` volley. In LOG000: 52 / 39 / 43 / 6+11. |
+| 0 | Stroke code | ✅ `3`/`4`, 🟡 others | `3` forehand side, `4` backhand side (volleys included), `2` serve, `8`/`9` volley. See *Volleys* below. |
 | 1 | "Zone" code, values 2–9 | ❓ | Mostly `6`. Possibly impact location or swing family. |
 | 2 | Spin class | 🟡 | `0` flat, `1` topspin, `2` slice |
-| 3 | ❓ | ❓ | Ranges 2–99 |
+| 3 | Spin amount? | 🟡 | Ranges 0–99. Flat shots mostly under 35, topspin and slice mostly 40–90. |
 | 4 | Racket speed | 🟡 | Read as **mph**. Ordering: serve > forehand > backhand > volley. |
 | 5 | Serve ball speed | 🟡 | Non-zero **only for serves**, 87–133, read as **km/h** |
 | 6 | ❓ | ❓ | Zero in all records seen |
@@ -73,7 +80,25 @@ Several 32-bit little-endian words (`0x20000d48`, `0x20007f70`, `0x20007f76`) lo
 
   That pattern fits a typical player well.
 - **Speed unit.** Reading byte 4 as m/s would give forehands of about 200 km/h, which is impossible. Read as mph, the serve racket speed (about 36) against the ball speed (about 66 mph) gives a plausible ratio.
-- **Clock glitch.** The final record in LOG000 jumps about 3 hours. Gaps over 30 minutes are flagged `glitch` and kept off timelines.
+- **Clock glitch.** The final record of every log has a nonsense timestamp (for example 65289 s). Gaps over 30 minutes are flagged `glitch` and kept off timelines.
+
+### Volleys (calibrated 2026-10-13)
+
+Five labelled sessions, recorded after a clock reset:
+
+| Log | What was played | Codes 3 / 4 / 8+9 | Byte 4 median |
+|---|---|---|---|
+| LOG003 | Forehand drill, baseline | 19 / 1 / 0 | 36 |
+| LOG005 | Backhand drill, baseline | 3 / 21 / 0 | 41 |
+| LOG002 | Warm-up rally at the service line | 34 / 20 / 3 | 12–19 |
+| LOG007 | "Mostly volleys" | 44 / 25 / 25 | 9–14 after a pause marker at 5:47, 35–38 before |
+| LOG008 | Volleys at the net | 16 / 20 / 19 | 9–12 |
+
+- **Codes 3 and 4 are the side of the body, not the shot type.** The two drills confirm 3 = forehand and 4 = backhand. In the volley sessions, about two in three volleys still carry 3 or 4.
+- **The parser therefore calls a 3 or 4 a volley when byte 4 is under 20 mph and the spin isn't topspin** (`VOLLEY_MAX_MPH`). On the labelled data this catches 70 of 72 net volleys, flags no shot from the baseline drills, and flags 19 of 54 shots from the service-line warm-up (slow, flat or slice pushes, which look like volleys to the sensor).
+- **LOG007 opens with 33 shots at groundstroke speed, mostly topspin,** before the pause marker. They decode as groundstrokes. The player remembered the session as all volleys, so this part is unconfirmed.
+- **Codes 8 and 9 are still read as volleys.** In these sessions they were all slow and flat or slice. Byte 7 for them is about +50, close to serves (+63), while forehands and backhands are 0 or below. That hints at a racket-head-up swing, such as a high volley or an overhead. A session with overheads would settle it.
+- **No serves were recorded,** so the serve findings are unchanged.
 
 Several sessions can follow each other in one file. Each type-0 record starts a new one.
 

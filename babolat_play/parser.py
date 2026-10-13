@@ -16,10 +16,17 @@ REC_LEN = 13
 # A jump this large between consecutive swings is a clock glitch, not a pause.
 MAX_GAP_S = 1800
 MPH_TO_KMH = 1.609344
+# Records starting with this byte are device events (10 01 03 00 61 …), not swings.
+MARKER = 10
+# A flat battery resets the racket clock to 2012-09-01; any earlier date is a reset clock.
+CLOCK_RESET_BEFORE = datetime(2013, 1, 1)
 
 # Inferred mappings - the only place to change when the format is better understood.
 STROKES = {2: "serve", 3: "forehand", 4: "backhand", 8: "volley", 9: "volley"}
 SPINS = {0: "flat", 1: "topspin", 2: "slice"}
+# The racket files volleys under forehand/backhand too. Calibrated on labelled
+# sessions: volleys are slow and flat or slice, groundstrokes faster or topspin.
+VOLLEY_MAX_MPH = 20
 
 
 class FormatError(ValueError):
@@ -44,6 +51,18 @@ class Session:
     started_at: datetime
     source: str
     swings: List[Swing]
+    duration_s: int = 0         # start record bytes 7-8, as logged by the racket
+
+    @property
+    def clock_reset(self) -> bool:
+        return self.started_at < CLOCK_RESET_BEFORE
+
+
+def _stroke(r: bytes) -> str:
+    stroke = STROKES.get(r[0], "unknown")
+    if stroke in ("forehand", "backhand") and r[4] < VOLLEY_MAX_MPH and SPINS.get(r[2]) != "topspin":
+        return "volley"
+    return stroke
 
 
 def _speed_kmh(stroke: str, r: bytes) -> Optional[float]:
@@ -69,13 +88,14 @@ def parse_log(data: bytes, source: str = "") -> List[Session]:
         r = data[off:off + REC_LEN]
         if r[0] == 0:
             sid = hashlib.sha1(header + r).hexdigest()[:16]
-            sessions.append(Session(sid, _start_time(r), source, []))
+            duration = struct.unpack_from("<H", r, 7)[0]
+            sessions.append(Session(sid, _start_time(r), source, [], duration))
             prev_t = 0
             continue
-        if not sessions:
-            continue  # swings before any session start cannot be dated
+        if not sessions or r[0] == MARKER:
+            continue  # a swing before any session start can't be dated; markers aren't swings
         t = struct.unpack_from("<H", r, 11)[0]
-        stroke = STROKES.get(r[0], "unknown")
+        stroke = _stroke(r)
         swings = sessions[-1].swings
         swings.append(Swing(
             idx=len(swings),
