@@ -1,6 +1,7 @@
 """macOS launchd agents: import whenever a volume mounts, and keep the server up."""
 import os
 import plistlib
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Tuple
@@ -8,13 +9,27 @@ from typing import Tuple
 IMPORT_LABEL = "com.babolatplay.import"
 SERVE_LABEL = "com.babolatplay.serve"
 AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
+PACKAGE_DIR = Path(__file__).resolve().parent
 
 
-def build_plists(repo_root: Path, home: Path, python: str, port: int) -> Tuple[dict, dict]:
-    env = {"PYTHONPATH": str(repo_root), "BABOLAT_PLAY_HOME": str(home)}
+def stage_package(home: Path) -> Path:
+    """Copy the package to <home>/lib so the agents never run code from the clone
+    (launchd jobs can't read ~/Downloads, ~/Desktop or ~/Documents without consent).
+    Returns the directory to put on PYTHONPATH."""
+    lib = home / "lib"
+    tmp = lib / "babolat_play.tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.copytree(PACKAGE_DIR, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    shutil.rmtree(lib / "babolat_play", ignore_errors=True)
+    tmp.rename(lib / "babolat_play")
+    return lib
+
+
+def build_plists(lib: Path, home: Path, python: str, port: int) -> Tuple[dict, dict]:
+    env = {"PYTHONPATH": str(lib), "BABOLAT_PLAY_HOME": str(home)}
     log = str(home / "agent.log")
     common = {"EnvironmentVariables": env, "StandardOutPath": log, "StandardErrorPath": log,
-              "WorkingDirectory": str(repo_root)}
+              "WorkingDirectory": str(home)}
     importer = dict(common, Label=IMPORT_LABEL, StartOnMount=True, RunAtLoad=False,
                     ProgramArguments=[python, "-m", "babolat_play", "import", "--auto"])
     server = dict(common, Label=SERVE_LABEL, RunAtLoad=True, KeepAlive=True,
@@ -41,10 +56,15 @@ def _unload(label: str, path: Path) -> None:
         _launchctl("unload", "-w", str(path))
 
 
-def install(repo_root: Path, home: Path, python: str, port: int, serve: bool = True) -> list:
+def install(home: Path, python: str, port: int, serve: bool = True) -> list:
     AGENTS_DIR.mkdir(parents=True, exist_ok=True)
     home.mkdir(parents=True, exist_ok=True)
-    importer, server = build_plists(repo_root, home, python, port)
+    importer, server = build_plists(stage_package(home), home, python, port)
+    if not serve:  # honour --no-serve even if an earlier install started the server
+        stale = _plist_path(SERVE_LABEL)
+        if stale.exists():
+            _unload(SERVE_LABEL, stale)
+            stale.unlink()
     installed = []
     for plist in ([importer, server] if serve else [importer]):
         path = _plist_path(plist["Label"])

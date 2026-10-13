@@ -10,7 +10,6 @@ from .milestones import compute_milestones
 from .notify import notify
 from .store import Store
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 KMH_PER_MPH = 1.609344
 
 
@@ -40,15 +39,26 @@ def cmd_import(args) -> int:
             r = import_path(vol, store, archive=paths.raw_dir(), min_swings=args.min_swings,
                             import_id=import_id)
         except PermissionError:
+            store.discard_import(import_id)
             notify("Babolat Play", "Can't read the racket. Allow Python access to removable volumes (see README).")
             print(f"Permission denied reading {vol}. See README > Troubleshooting.", file=sys.stderr)
+            return 1
+        except FileNotFoundError:
+            store.discard_import(import_id)
+            print(f"No such folder: {vol}", file=sys.stderr)
             return 1
         total.new += r.new
         total.updated += r.updated
         total.skipped += r.skipped
         total.errors += r.errors
-    store.finish_import(import_id, len(total.new), len(total.updated))
-    added = _sync_and_build(store, import_id, paths.site_dir())
+    if total.new or total.updated:
+        store.finish_import(import_id, len(total.new), len(total.updated))
+        added = _sync_and_build(store, import_id, paths.site_dir())
+    else:
+        store.discard_import(import_id)  # nothing changed: keep the last import's "new" flags
+        added = []
+        if not (paths.site_dir() / "index.html").exists():
+            site.build_site(store, paths.site_dir())
 
     print(f"{len(total.new)} new, {len(total.updated)} updated, {total.skipped} already imported or skipped")
     for e in total.errors:
@@ -85,7 +95,7 @@ def cmd_install(args) -> int:
     if sys.platform != "darwin":
         print("Auto-import agents are macOS only. Use `import` manually and `serve` to view.")
         return 1
-    for p in agent.install(REPO_ROOT, paths.home(), sys.executable, args.port, serve=not args.no_serve):
+    for p in agent.install(paths.home(), sys.executable, args.port, serve=not args.no_serve):
         print(f"Installed {p}")
     print("Running a first import now...")
     cmd_import(argparse.Namespace(path=None, auto=False, min_swings=10))

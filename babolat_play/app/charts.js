@@ -141,9 +141,14 @@
       var px = (evt.clientX - r.left) * (o.W / r.width);
       onMove(Math.max(0, Math.min(o.n - 1, o.index(px))));
     }
+    hit.style.touchAction = "pan-y"; // horizontal scrub on the chart, vertical page scroll
     hit.addEventListener("pointermove", at);
     hit.addEventListener("pointerdown", at);
-    hit.addEventListener("pointerleave", function () { tip.hidden = true; onMove(-1); });
+    // Touch fires pointerleave right after the finger lifts; only a mouse leaving hides the tip.
+    // Touch tips close when the user taps elsewhere (document listener below).
+    hit.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "mouse") { tip.hidden = true; onMove(-1); }
+    });
   }
 
   function lineChart(host, cfg) {
@@ -258,6 +263,12 @@
       });
     });
   }
+
+  document.addEventListener("pointerdown", function (e) {
+    document.querySelectorAll(".chart").forEach(function (c) {
+      if (!c.contains(e.target)) { var t = c.querySelector(".chart-tip"); if (t) t.hidden = true; }
+    });
+  });
 
   window.Charts = { lineChart: lineChart, barChart: barChart, niceTicks: niceTicks };
 })();

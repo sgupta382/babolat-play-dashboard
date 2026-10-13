@@ -67,7 +67,7 @@ sequenceDiagram
     P->>P: open the dashboard and see the new-milestone banner
 ```
 
-If no racket is mounted, `--auto` exits quietly, because `StartOnMount` also fires for other drives. A `PermissionError` (macOS privacy settings) produces a notification that points at the README.
+If no racket is mounted, `--auto` exits quietly, because `StartOnMount` also fires for other drives. An import that finds nothing new leaves no trace: no import row, no rebuild, and the "new" flags from the last real import stay put. If macOS privacy settings block the racket, listing it raises `PermissionError` (the importer uses `os.listdir`, because pathlib's glob silently returns nothing), and you get a notification pointing at the README. The agents run a copy of the package staged in `~/.babolat-play/lib`, because launchd jobs can't read code in `~/Downloads`, `~/Desktop` or `~/Documents`.
 
 ## Data model
 

@@ -77,6 +77,10 @@ class Store:
             self.db.execute("UPDATE imports SET new_sessions = ?, updated_sessions = ? WHERE id = ?",
                             (new, updated, import_id))
 
+    def discard_import(self, import_id: int) -> None:
+        with self.db:
+            self.db.execute("DELETE FROM imports WHERE id = ?", (import_id,))
+
     def latest_import_id(self) -> Optional[int]:
         return self.db.execute("SELECT MAX(id) FROM imports").fetchone()[0]
 

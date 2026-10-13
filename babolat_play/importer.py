@@ -1,5 +1,6 @@
 """Find the racket, read its logs (never writing to it) and store new sessions."""
 import hashlib
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -44,11 +45,18 @@ def _archive(data: bytes, archive: Path) -> None:
         dest.write_bytes(data)
 
 
+def log_files(src: Path) -> List[Path]:
+    """LOG*.BIN files in src. Raises PermissionError/FileNotFoundError rather than
+    returning nothing (pathlib's glob swallows a denied directory listing)."""
+    names = [n for n in os.listdir(src) if n.upper().startswith("LOG") and n.upper().endswith(".BIN")]
+    return [Path(src) / n for n in sorted(names, key=str.upper)]
+
+
 def import_path(src: Path, store: Store, archive: Optional[Path] = None,
                 min_swings: int = 10, import_id: Optional[int] = None) -> ImportResult:
     own_run = import_id is None
     result = ImportResult(import_id if not own_run else store.begin_import())
-    for f in sorted(Path(src).glob("LOG*.BIN"), key=lambda p: p.name.upper()):
+    for f in log_files(src):
         data = f.read_bytes()
         if archive is not None:
             _archive(data, archive)

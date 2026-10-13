@@ -37,7 +37,7 @@ It also runs a first import straight away and prints your dashboard's address. T
 2. **iPhone:** Share → *Add to Home Screen*. **Android:** ⋮ → *Install app*.
 3. Next time you play, plug the racket into the Mac. The dashboard updates by itself.
 
-Keep the cloned folder where it is, because the agents run the code from there. To remove the agents, run `python3 -m babolat_play uninstall`. Your data stays in `~/.babolat-play/`.
+`install` copies the code to `~/.babolat-play/lib`, so the agents don't depend on where you cloned the repo. After a `git pull`, run `install` again to update. To remove the agents, run `python3 -m babolat_play uninstall`. Your data stays in `~/.babolat-play/`.
 
 ### Just want to look?
 
@@ -93,14 +93,14 @@ The racket's file format was never published, so it was reverse-engineered for t
 
 [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) gives the evidence for every byte. **You can help improve it.** Record a labelled session and share it; [CONTRIBUTING.md](CONTRIBUTING.md) explains how.
 
-Raw logs are archived in `~/.babolat-play/raw/`, so when the decoding improves, `python3 -m babolat_play build` can re-decode your whole history.
+Every raw log is archived in `~/.babolat-play/raw/`, and each swing's raw bytes are stored next to the decoded values. When the decoding improves, your whole history can be re-decoded without the racket.
 
 ## Privacy
 
 - Everything stays on your computer.
-- The server only answers on your local network, serves static files, and has no write endpoints and no directory listings.
+- The server listens on all of this computer's network connections. On a laptop that leaves home, that includes other Wi-Fi networks and VPNs. It serves static files only, with no write endpoints and no directory listings.
 - Nothing is sent to the internet.
-- Anyone on your Wi-Fi who knows the address can view the dashboard. Use `install --no-serve` if you don't want that.
+- Anyone on your Wi-Fi who knows the address can view the dashboard. Run `install --no-serve` to stop and remove the server agent, keeping only auto-import.
 
 ## Troubleshooting
 

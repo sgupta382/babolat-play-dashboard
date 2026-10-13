@@ -65,6 +65,9 @@
   var MILESTONES = DATA.milestones.filter(function (m) { return m.key !== "sessions_1"; })
     .sort(function (a, b) { return a.achieved_at < b.achieved_at ? -1 : a.achieved_at > b.achieved_at ? 1 : 0; });
 
+  function newMilestones() { // newest first, so the latest records lead the banner
+    return MILESTONES.filter(function (m) { return m.is_new; }).reverse();
+  }
   function bestOf(stroke) {
     var best = null;
     SESSIONS.forEach(function (s) { var m = s.by[stroke].max; if (m != null && (!best || m > best.v)) best = { v: m, s: s }; });
@@ -156,7 +159,7 @@
   function overview() {
     if (!SESSIONS.length) return empty();
     var last = SESSIONS[SESSIONS.length - 1];
-    var fresh = MILESTONES.filter(function (m) { return m.is_new; });
+    var fresh = newMilestones();
     var dismissed = prefs.get("dismissed", "") === String(DATA.latest_import_id);
     var html = "";
 
@@ -342,7 +345,7 @@
     }
     if (tab === "session") drawTimeline(decodeURIComponent(parts.slice(1).join("/")));
     if (tab === "overview") {
-      wireShare(view, MILESTONES.filter(function (m) { return m.is_new; }));
+      wireShare(view, newMilestones());
       var x = document.getElementById("dismiss");
       if (x) x.onclick = function () { prefs.set("dismissed", String(DATA.latest_import_id)); render(); };
     }
@@ -378,6 +381,16 @@
 
   footer();
   render();
+
+  // Home-screen apps have no reload button: when the app comes back to the
+  // foreground, check for a newer import and reload if there is one.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || location.protocol.indexOf("http") !== 0) return;
+    fetch("data.js", { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) {
+      var m = /"generated_at":"([^"]+)"/.exec(t);
+      if (m && m[1] !== DATA.generated_at) location.reload();
+    }).catch(function () { /* Mac not reachable: keep showing the cached stats */ });
+  });
 
   if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
     navigator.serviceWorker.register("sw.js").catch(function () { /* offline support is optional */ });
