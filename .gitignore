@@ -1,0 +1,7 @@
+data/
+*.db
+site/
+site-demo/
+__pycache__/
+.DS_Store
+.superpowers/
