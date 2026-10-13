@@ -60,6 +60,7 @@ python3 -m babolat_play status                       # what's imported, what's i
 |---|---|
 | `import [--path P] [--min-swings 10]` | Import new sessions, update milestones and rebuild the dashboard |
 | `clock "YYYY-MM-DD HH:MM" [--path P]` | After the racket clock resets to 2012: give the real time your last session ended, and it dates and imports the held-back sessions |
+| `redecode` | Re-decode every stored session from the raw archive with the current parser |
 | `build` | Rebuild the dashboard from stored data |
 | `serve [--port 8765]` | Serve the dashboard on your network (read-only) |
 | `install [--no-serve]` / `uninstall` | macOS: add or remove the auto-import and server agents |
@@ -95,7 +96,7 @@ The racket's file format was never published, so it was reverse-engineered for t
 
 [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md) gives the evidence for every byte. **You can help improve it.** Record a labelled session and share it; [CONTRIBUTING.md](CONTRIBUTING.md) explains how.
 
-Every raw log is archived in `~/.babolat-play/raw/`, and each swing's raw bytes are stored next to the decoded values. When the decoding improves, your whole history can be re-decoded without the racket.
+Every raw log is archived in `~/.babolat-play/raw/`, and each swing's raw bytes are stored next to the decoded values. When the decoding improves, `python3 -m babolat_play redecode` re-decodes your whole history without the racket.
 
 ## Privacy
 

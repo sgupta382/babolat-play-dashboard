@@ -50,11 +50,24 @@ class Store:
             else:
                 self.db.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?)",
                                 (s.id, s.started_at.isoformat(), s.source, len(s.swings), _now()))
-            self.db.executemany(
-                "INSERT INTO swings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [(s.id, w.idx, w.t, w.stroke, w.spin, w.zone, w.speed_kmh, int(w.glitch), w.raw)
-                 for w in s.swings])
+            self._insert_swings(s)
         return "updated" if row else "new"
+
+    def replace_swings(self, s: Session) -> bool:
+        """Swap in freshly decoded swings for a stored session; its start time stays."""
+        if not self.db.execute("SELECT 1 FROM sessions WHERE id = ?", (s.id,)).fetchone():
+            return False
+        with self.db:
+            self.db.execute("DELETE FROM swings WHERE session_id = ?", (s.id,))
+            self.db.execute("UPDATE sessions SET swing_count = ? WHERE id = ?", (len(s.swings), s.id))
+            self._insert_swings(s)
+        return True
+
+    def _insert_swings(self, s: Session) -> None:
+        self.db.executemany(
+            "INSERT INTO swings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [(s.id, w.idx, w.t, w.stroke, w.spin, w.zone, w.speed_kmh, int(w.glitch), w.raw)
+             for w in s.swings])
 
     def sessions(self) -> List[Session]:
         out = []

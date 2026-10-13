@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import agent, clock, demo, paths, server, site
-from .importer import ImportResult, find_racket_volumes, import_path, read_sessions
+from .importer import ImportResult, find_racket_volumes, import_path, read_sessions, redecode
 from .milestones import compute_milestones
 from .notify import notify
 from .store import Store
@@ -106,6 +106,16 @@ def cmd_clock(args) -> int:
     return cmd_import(argparse.Namespace(path=args.path, auto=False, min_swings=args.min_swings))
 
 
+def cmd_redecode(args) -> int:
+    store = Store(paths.db_path())
+    n = redecode(paths.raw_dir(), store)
+    import_id = store.latest_import_id()
+    if n and import_id is not None:
+        _sync_and_build(store, import_id, paths.site_dir())
+    print(f"Re-decoded {n} session{'s' if n != 1 else ''} from {paths.raw_dir()}")
+    return 0
+
+
 def cmd_build(args) -> int:
     out = site.build_site(Store(paths.db_path()), paths.site_dir())
     print(f"Built {out}")
@@ -188,6 +198,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--path", help="folder holding LOG*.BIN (default: auto-detect the racket)")
     p.add_argument("--min-swings", type=int, default=10, help="ignore sessions shorter than this")
     p.set_defaults(fn=cmd_clock)
+    sub.add_parser("redecode", help="re-decode stored sessions from the raw archive with the current parser"
+                   ).set_defaults(fn=cmd_redecode)
     sub.add_parser("build", help="rebuild the dashboard from stored data").set_defaults(fn=cmd_build)
     p = sub.add_parser("serve", help="serve the dashboard on your local network")
     p.add_argument("--port", type=int, default=8765)

@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from babolat_play import cli, clock, paths
-from babolat_play.importer import import_path
+from babolat_play.importer import import_path, redecode
 from babolat_play.parser import HEADER_LEN, parse_log
 from babolat_play.store import Store
 
@@ -86,6 +86,14 @@ class ResetImportTest(unittest.TestCase):
         self.assertEqual((len(r.new), r.undated), (2, 0))
         self.assertEqual(max(s.started_at for s in self.db.sessions()), datetime(2026, 10, 13, 17, 22, 53))
 
+    def test_redecode_keeps_start_time_and_rewrites_swings(self):
+        import_path(self.vol, self.db, archive=self.tmp / "raw")
+        sid = self.db.sessions()[0].id
+        self.db.db.execute("UPDATE swings SET stroke = 'stale' WHERE session_id = ?", (sid,))
+        self.assertEqual(redecode(self.tmp / "raw", self.db), 1)  # the held-back log isn't stored
+        [s] = self.db.sessions()
+        self.assertEqual(s.started_at, datetime(2022, 8, 29, 19, 17, 33))
+        self.assertNotIn("stale", {w.stroke for w in s.swings})
 
 
 class ClockCliTest(unittest.TestCase):

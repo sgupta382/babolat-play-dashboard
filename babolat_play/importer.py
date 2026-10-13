@@ -94,3 +94,18 @@ def import_path(src: Path, store: Store, archive: Optional[Path] = None,
     if own_run:
         store.finish_import(result.import_id, len(result.new), len(result.updated))
     return result
+
+
+def redecode(archive: Path, store: Store) -> int:
+    """Re-decode stored sessions from the raw archive with the current parser,
+    keeping their stored start times. Returns how many sessions were rewritten."""
+    latest = {}
+    for f in sorted(Path(archive).glob("*.BIN")):  # named by content hash, not LOG*.BIN
+        try:
+            sessions = parse_log(f.read_bytes(), f.name)
+        except FormatError:
+            continue
+        for s in sessions:
+            if s.id not in latest or len(s.swings) > len(latest[s.id].swings):
+                latest[s.id] = s  # a log that grew is archived once per version
+    return sum(store.replace_swings(s) for s in latest.values())

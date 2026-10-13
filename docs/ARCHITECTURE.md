@@ -34,7 +34,7 @@ flowchart TB
 |---|---|---|
 | `parser.py` | Decodes a log into sessions and swings. Holds the format constants and the inferred mapping tables. | nothing |
 | `store.py` | SQLite tables for sessions, swings, milestones and import runs. Idempotent upsert. | parser types |
-| `importer.py` | Finds the racket, archives raw logs, parses them and upserts. Holds back sessions with a reset clock until `clock.py` can date them. Never writes to the volume. | parser, store, clock |
+| `importer.py` | Finds the racket, archives raw logs, parses them and upserts. Holds back sessions with a reset clock until `clock.py` can date them. Re-decodes stored sessions from the archive. Never writes to the volume. | parser, store, clock |
 | `clock.py` | Calibrates the offset after a racket clock reset, saves it to `clock.json` and applies it. | parser types |
 | `milestones.py` | Session history → milestones. The same history always gives the same result. | parser types |
 | `site.py` | Copies the app shell, writes `data.js` and swaps in the new site atomically. | store |
